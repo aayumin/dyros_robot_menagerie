@@ -22,6 +22,12 @@ namespace DualFR3Husky
         current_base_vel_pub_   = node_->create_publisher<geometry_msgs::msg::Twist>("dual_fr3_husky_controller/base_vel", 10);
         joint_pub_              = node_->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
 
+
+        hand_eye_l_rgb_pub_ = node_->create_publisher<sensor_msgs::msg::Image>("dual_fr3_husky_controller/handeye_l/rgb/image_raw", 10);
+        hand_eye_l_depth_pub_ = node_->create_publisher<sensor_msgs::msg::Image>("dual_fr3_husky_controller/handeye_l/depth/image_raw", 10);
+        hand_eye_r_rgb_pub_ = node_->create_publisher<sensor_msgs::msg::Image>("dual_fr3_husky_controller/handeye_r/rgb/image_raw", 10);
+        hand_eye_r_depth_pub_ = node_->create_publisher<sensor_msgs::msg::Image>("dual_fr3_husky_controller/handeye_r/depth/image_raw", 10);
+
         base_vel_.setZero();
         base_vel_desired_.setZero();
         base_vel_init_.setZero();
@@ -130,6 +136,7 @@ namespace DualFR3Husky
         current_r_ee_pose_pub_timer_ = node_->create_wall_timer(std::chrono::milliseconds(50),  std::bind(&DualFR3HuskyController::pubREEPoseCallback, this));
         current_base_pose_pub_timer_ = node_->create_wall_timer(std::chrono::milliseconds(100), std::bind(&DualFR3HuskyController::pubBasePoseCallback, this));
         current_base_vel_pub_timer_  = node_->create_wall_timer(std::chrono::milliseconds(100), std::bind(&DualFR3HuskyController::pubBaseVelCallback, this));
+        hand_eye_cam_pub_timer_ = node_->create_wall_timer(std::chrono::milliseconds(16), std::bind(&DualFR3HuskyController::pubHandEyeCallback, this));
     }
 
     void DualFR3HuskyController::updateState(const MujocoRosSim::VecMap& pos_dict, 
@@ -192,7 +199,18 @@ namespace DualFR3Husky
     void DualFR3HuskyController::updateRGBDImage(const MujocoRosSim::ImageCVMap& images)
     {
 
+
+        std::scoped_lock<std::mutex> lk_l(hand_eye_l_cam_mtx_);
+        hand_eye_l_rgb_img_ = images.at("l_realsense_camera").rgb.clone();
+        hand_eye_l_depth_img_ = images.at("l_realsense_camera").depth.clone();
+
+
+        std::scoped_lock<std::mutex> lk_r(hand_eye_r_cam_mtx_);
+        hand_eye_r_rgb_img_ = images.at("r_realsense_camera").rgb.clone();
+        hand_eye_r_depth_img_ = images.at("r_realsense_camera").depth.clone();
+
     }
+
 
     void DualFR3HuskyController::compute()
     {
@@ -489,6 +507,48 @@ namespace DualFR3Husky
         base_vel_msg.angular.z = base_vel_(2);
         
         current_base_vel_pub_->publish(base_vel_msg);
+    }
+
+
+    void DualFR3HuskyController::pubHandEyeCallback()
+    {   
+        // left
+        cv::Mat img_rgb_l, img_depth_l;
+        {
+            std::scoped_lock<std::mutex> lk_l(hand_eye_l_cam_mtx_);
+            if (hand_eye_l_rgb_img_.empty() || hand_eye_l_depth_img_.empty()) return;
+            img_rgb_l = hand_eye_l_rgb_img_.clone();
+            img_depth_l = hand_eye_l_depth_img_.clone();
+        }
+
+        auto rgb_msg_l = toImageMsg(img_rgb_l, "rgb8");
+        auto depth_msg_l = toImageMsg(img_depth_l, "32FC1");
+        rgb_msg_l->header.stamp = node_->now();
+        rgb_msg_l->header.frame_id = "hand_eye_l_cam_frame";
+        depth_msg_l->header.stamp = node_->now();
+        depth_msg_l->header.frame_id = "hand_eye_l_cam_frame";
+        hand_eye_l_rgb_pub_->publish(*rgb_msg_l);
+        hand_eye_l_depth_pub_->publish(*depth_msg_l);
+
+
+        // right
+        cv::Mat img_rgb_r, img_depth_r;
+        {
+            std::scoped_lock<std::mutex> lk_r(hand_eye_r_cam_mtx_);
+            if (hand_eye_r_rgb_img_.empty() || hand_eye_r_depth_img_.empty()) return;
+            img_rgb_r = hand_eye_r_rgb_img_.clone();
+            img_depth_r = hand_eye_r_depth_img_.clone();
+        }
+
+        auto rgb_msg_r = toImageMsg(img_rgb_r, "rgb8");
+        auto depth_msg_r = toImageMsg(img_depth_r, "32FC1");
+        rgb_msg_r->header.stamp = node_->now();
+        rgb_msg_r->header.frame_id = "hand_eye_r_cam_frame";
+        depth_msg_r->header.stamp = node_->now();
+        depth_msg_r->header.frame_id = "hand_eye_r_cam_frame";
+        hand_eye_r_rgb_pub_->publish(*rgb_msg_r);
+        hand_eye_r_depth_pub_->publish(*depth_msg_r);
+
     }
 
 

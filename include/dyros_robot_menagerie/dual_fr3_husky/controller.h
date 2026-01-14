@@ -10,11 +10,11 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
-// #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/image.hpp>
 // #include <rclcpp/qos.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-// #include "image_io.h"
+#include "image_io.h"
 #include "math_type_define.h"
 
 #include <mutex> 
@@ -105,6 +105,7 @@ MuJoCo Model Information: dual_fr3_husky
             void pubLEEPoseCallback();
             void pubBasePoseCallback();
             void pubBaseVelCallback();
+            void pubHandEyeCallback();
 
             std::shared_ptr<DualFR3Husky::DualFR3HuskyRobotData> robot_data_;
             std::unique_ptr<drc::MobileManipulator::RobotController> robot_controller_;
@@ -119,11 +120,16 @@ MuJoCo Model Information: dual_fr3_husky
             rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr    current_base_pose_pub_;
             rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr          current_base_vel_pub_;
             rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr       joint_pub_;
+            rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr            hand_eye_l_rgb_pub_;
+            rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr            hand_eye_l_depth_pub_;
+            rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr            hand_eye_r_rgb_pub_;
+            rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr            hand_eye_r_depth_pub_;
 
             rclcpp::TimerBase::SharedPtr current_l_ee_pose_pub_timer_;
             rclcpp::TimerBase::SharedPtr current_r_ee_pose_pub_timer_;
             rclcpp::TimerBase::SharedPtr current_base_pose_pub_timer_;
             rclcpp::TimerBase::SharedPtr current_base_vel_pub_timer_;
+            rclcpp::TimerBase::SharedPtr hand_eye_cam_pub_timer_;
 
             bool is_mode_changed_{true};
             bool is_l_goal_pose_changed_{false};
@@ -133,6 +139,14 @@ MuJoCo Model Information: dual_fr3_husky
             
             double control_start_time_;
             double current_time_;
+
+            //// hand-eye camera
+            cv::Mat hand_eye_l_rgb_img_;
+            cv::Mat hand_eye_l_depth_img_;
+            std::mutex hand_eye_l_cam_mtx_;
+            cv::Mat hand_eye_r_rgb_img_;
+            cv::Mat hand_eye_r_depth_img_;
+            std::mutex hand_eye_r_cam_mtx_;
 
             //// mobile base
             Vector3d base_vel_; // [lin_x, lin_y, ang] wrt base frame

@@ -14,7 +14,7 @@
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 // --- restore macros if they existed ---
